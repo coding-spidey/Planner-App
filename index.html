@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus — To-Do & Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ========== AUTH SCREEN ========== -->
+  <div id="auth-screen" class="auth-overlay">
+    <div class="auth-card">
+      <div class="brand" style="border:none; padding:0; margin-bottom:20px; justify-content:center;">
+        <span class="brand-icon">◈</span>
+        <span class="brand-name" style="color:var(--text-primary)">Focus Login</span>
+      </div>
+      <div class="form-group">
+        <label for="auth-username" class="form-label">Email</label>
+        <input type="text" id="auth-username" class="form-input" placeholder="Enter email" />
+      </div>
+      <div class="form-group">
+        <label for="auth-password" class="form-label">Password</label>
+        <input type="password" id="auth-password" class="form-input" placeholder="Enter password" />
+      </div>
+      <button id="btn-login" class="btn-primary" style="width:100%; margin-top:10px;">Login</button>
+      <button id="btn-register" class="btn-secondary" style="width:100%; margin-top:10px; padding: 10px; cursor: pointer; border: 1px solid var(--border-color); background: none; color: var(--text-secondary); border-radius: 4px;">Create Account</button>
+      <div id="auth-error" class="auth-error-msg">Invalid credentials. Please try again.</div>
+    </div>
+  </div>
+
+  <!-- ========== SIDEBAR ========== -->
+  <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-top">
+      <div class="brand">
+        <span class="brand-icon">◈</span>
+        <span class="brand-name">Focus</span>
+      </div>
+
+      <!-- Focus Timer Section -->
+      <div class="timer-section">
+        <div class="timer-label" id="timer-label">Focus Session</div>
+        <div class="timer-display" id="timer-display">25:00</div>
+        <div class="timer-controls">
+          <button class="timer-btn" id="btn-timer-toggle">Start Focus</button>
+          <button class="timer-btn-icon" id="btn-timer-reset" title="Reset">⟲</button>
+        </div>
+      </div>
+
+      <nav class="nav-views">
+        <div class="sidebar-search">
+          <input type="text" id="sidebar-search-input" placeholder="Search tasks… (/)" aria-label="Search tasks" />
+        </div>
+        <button class="nav-item active" data-view="today" aria-label="Today's tasks" tabindex="0">
+          <span class="nav-icon">◆</span>
+          <span>Today</span>
+          <span class="nav-badge" id="badge-today">0</span>
+        </button>
+        <button class="nav-item" data-view="inbox" aria-label="Inbox" tabindex="0">
+          <span class="nav-icon">◇</span>
+          <span>Inbox</span>
+          <span class="nav-badge" id="badge-inbox">0</span>
+        </button>
+        <button class="nav-item" data-view="upcoming" aria-label="Upcoming tasks" tabindex="0">
+          <span class="nav-icon">◈</span>
+          <span>Upcoming</span>
+          <span class="nav-badge" id="badge-upcoming">0</span>
+        </button>
+        <button class="nav-item" data-view="planner" aria-label="Daily planner" tabindex="0">
+          <span class="nav-icon">▦</span>
+          <span>Planner</span>
+        </button>
+        <button class="nav-item" data-view="completed" aria-label="Completed tasks" tabindex="0">
+          <span class="nav-icon">◉</span>
+          <span>Completed</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-section-label">Daily Habits</div>
+      <div class="habit-tracker" id="habit-tracker">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="habit-add-row">
+        <input type="text" id="habit-add-input" placeholder="New habit…" />
+        <button id="habit-add-btn">+</button>
+      </div>
+
+      <div class="sidebar-section-label">Categories</div>
+      <nav class="nav-categories" id="nav-categories" aria-label="Categories">
+        <!-- Rendered by JS -->
+      </nav>
+      <div class="category-add-row">
+        <input type="text" id="cat-add-input" placeholder="New cat…" maxlength="15" />
+        <input type="color" id="cat-add-color" value="#c8621a" />
+        <button id="cat-add-btn">+</button>
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="analytics-mini" id="analytics-mini">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="sidebar-actions">
+        <button class="icon-btn" id="btn-logout" title="Logout">⎋</button>
+        <button class="icon-btn" id="btn-shortcuts" title="Shortcuts (?)">⌨</button>
+        <button class="icon-btn" id="btn-theme" aria-label="Toggle dark mode" tabindex="0" title="Toggle theme">☽</button>
+        <button class="icon-btn" id="btn-export" aria-label="Export tasks" tabindex="0" title="Export JSON">↑</button>
+        <button class="icon-btn" id="btn-import-trigger" aria-label="Import tasks" tabindex="0" title="Import JSON">↓</button>
+        <input type="file" id="btn-import" accept=".json" style="display:none" aria-hidden="true" />
+      </div>
+    </div>
+  </aside>
+
+  <!-- ========== SHORTCUTS MODAL ========== -->
+  <dialog class="modal" id="modal-shortcuts" aria-labelledby="modal-shortcuts-title">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-shortcuts-title" class="modal-title">Keyboard Shortcuts</h2>
+        <button class="modal-close" id="modal-shortcuts-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="shortcut-list">
+          <div class="shortcut-item"><kbd>/</kbd> <span>Focus Search</span></div>
+          <div class="shortcut-item"><kbd>n</kbd> <span>New Task</span></div>
+          <div class="shortcut-item"><kbd>t</kbd> <span>Today View</span></div>
+          <div class="shortcut-item"><kbd>p</kbd> <span>Planner View</span></div>
+          <div class="shortcut-item"><kbd>i</kbd> <span>Inbox View</span></div>
+          <div class="shortcut-item"><kbd>u</kbd> <span>Upcoming View</span></div>
+          <div class="shortcut-item"><kbd>Esc</kbd> <span>Close Modals / Quick Add</span></div>
+          <div class="shortcut-item"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> <span>Save Task</span></div>
+          <div class="shortcut-item"><kbd>?</kbd> <span>Show this guide</span></div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ========== MAIN ========== -->
+  <main class="main" id="main-content">
+
+    <!-- Mobile header -->
+    <header class="mobile-header">
+      <button class="icon-btn" id="btn-sidebar-toggle" aria-label="Toggle sidebar" tabindex="0">☰</button>
+      <span class="brand-name">Focus</span>
+      <button class="icon-btn" id="btn-add-mobile" aria-label="Add task" tabindex="0">+</button>
+    </header>
+
+    <!-- View: Today / Inbox / Upcoming / Completed -->
+    <section class="view" id="view-today" data-active="true">
+      <div class="view-header">
+        <div class="view-title-block">
+          <h1 class="view-title" id="view-title-today">Today</h1>
+          <span class="view-subtitle" id="view-date"></span>
+        </div>
+        <div class="view-actions">
+          <select class="filter-select" id="filter-priority" aria-label="Filter by priority">
+            <option value="all">All priorities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <button class="btn-primary" id="btn-add-task" tabindex="0" aria-label="Add new task">+ Add Task</button>
+        </div>
+      </div>
+
+      <!-- Quick-add bar -->
+      <div class="quick-add-bar" id="quick-add-bar" role="form" aria-label="Quick add task">
+        <input type="text" id="quick-add-input" class="quick-add-input" placeholder="Task title… (Enter to save, Esc to cancel)" aria-label="New task title" maxlength="200" />
+        <div class="quick-add-meta">
+          <select id="quick-priority" class="meta-select" aria-label="Priority">
+            <option value="medium">● Medium</option>
+            <option value="high">● High</option>
+            <option value="low">● Low</option>
+          </select>
+          <input type="date" id="quick-date" class="meta-input" aria-label="Due date" />
+          <select id="quick-category" class="meta-select" aria-label="Category">
+            <!-- Populated by JS -->
+          </select>
+          <button class="btn-save-quick" id="btn-save-quick" tabindex="0">Save</button>
+          <button class="btn-cancel-quick" id="btn-cancel-quick" tabindex="0">✕</button>
+        </div>
+      </div>
+
+      <div class="task-list" id="task-list" role="list" aria-label="Task list">
+        <!-- Rendered by JS -->
+      </div>
+    </section>
+
+    <!-- View: Planner -->
+    <section class="view" id="view-planner">
+      <div class="view-header">
+        <div class="view-title-block">
+          <h1 class="view-title">Planner</h1>
+          <span class="view-subtitle" id="planner-date-label"></span>
+        </div>
+        <div class="view-actions">
+          <button class="icon-btn" id="planner-prev" aria-label="Previous day" tabindex="0">‹</button>
+          <button class="btn-secondary" id="planner-today-btn" tabindex="0">Today</button>
+          <button class="icon-btn" id="planner-next" aria-label="Next day" tabindex="0">›</button>
+        </div>
+      </div>
+      <div class="planner-layout" id="planner-layout">
+        <div class="planner-blocks" id="planner-blocks">
+          <!-- Rendered by JS -->
+        </div>
+        <div class="planner-unscheduled" id="planner-unscheduled">
+          <div class="planner-unscheduled-title">Unscheduled for today</div>
+          <div class="planner-unscheduled-list" id="planner-unscheduled-list"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== TASK DETAIL MODAL ========== -->
+  <dialog class="modal" id="modal-task" aria-labelledby="modal-task-title" aria-modal="true">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-task-title" class="modal-title">Edit Task</h2>
+        <button class="modal-close" id="modal-close" aria-label="Close modal" tabindex="0">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-task-id" />
+
+        <div class="form-group">
+          <label for="edit-title" class="form-label">Title</label>
+          <input type="text" id="edit-title" class="form-input" placeholder="Task title" maxlength="200" required />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-notes" class="form-label">Notes</label>
+          <textarea id="edit-notes" class="form-textarea" placeholder="Additional notes…" rows="3"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-priority" class="form-label">Priority</label>
+            <select id="edit-priority" class="form-select">
+              <option value="high">🔴 High</option>
+              <option value="medium" selected>🟡 Medium</option>
+              <option value="low">🔵 Low</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="edit-category" class="form-label">Category</label>
+            <select id="edit-category" class="form-select">
+              <!-- Populated by JS -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-due-date" class="form-label">Due Date</label>
+            <input type="date" id="edit-due-date" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label for="edit-time-block" class="form-label">Time Block</label>
+            <select id="edit-time-block" class="form-select">
+              <option value="">None</option>
+              <option value="morning">Morning (6–12)</option>
+              <option value="afternoon">Afternoon (12–17)</option>
+              <option value="evening">Evening (17–21)</option>
+              <option value="night">Night (21–24)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-tags" class="form-label">Tags <span class="form-hint">(comma-separated)</span></label>
+          <input type="text" id="edit-tags" class="form-input" placeholder="e.g. deep-work, urgent, waiting" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label checkbox-label">
+            <input type="checkbox" id="edit-recurring" class="form-checkbox" />
+            <span>Recurring daily task</span>
+          </label>
+        </div>
+
+        <div class="modal-divider"></div>
+
+        <div class="form-group">
+          <label class="form-label">Subtasks</label>
+          <div class="subtask-input-row">
+            <input type="text" id="subtask-add-input" class="form-input" placeholder="Add subtask…" />
+            <button class="btn-secondary" id="subtask-add-btn">Add</button>
+          </div>
+          <div class="subtask-list" id="modal-subtask-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-danger" id="btn-delete-task" tabindex="0">Delete</button>
+        <div class="modal-footer-right">
+          <button class="btn-secondary" id="btn-cancel-edit" tabindex="0">Cancel</button>
+          <button class="btn-primary" id="btn-save-edit" tabindex="0">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ========== TOAST ========== -->
+  <div class="toast" id="toast" role="alert" aria-live="polite"></div>
+
+  <!-- ========== SIDEBAR OVERLAY (mobile) ========== -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- Firebase SDKs (Compat Version) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <script src="script.js"></script>
+</body>
+</html>
