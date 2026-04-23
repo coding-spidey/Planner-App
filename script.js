@@ -28,19 +28,21 @@ const firebaseConfig = {
   measurementId: "G-F52RF17D34"
 };
 
-// Initialize Firebase
+// Initialize Firebase services safely
+let db = null;
+let auth = null;
+
 try {
   if (typeof firebase !== 'undefined') {
     firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    auth = firebase.auth();
   } else {
     console.error('Firebase SDK not loaded. Check your internet connection or script tags.');
   }
 } catch (e) {
   console.error('Firebase initialization failed:', e);
 }
-
-const db = typeof firebase !== 'undefined' ? firebase.firestore() : null;
-const auth = typeof firebase !== 'undefined' ? firebase.auth() : null;
 
 /* ================================================================
    CONSTANTS
@@ -147,10 +149,15 @@ const StateManager = (() => {
 
   let _state = null;
   let _uid = null;
+  let _unsubscribe = null;
 
   async function _hydrate() {
     _uid = auth?.currentUser?.uid || null;
 
+    // Clear previous listener if any
+    if (_unsubscribe) _unsubscribe();
+
+    // 1. Initial Load
     let data = await StorageService.load(_uid);
 
     if (data && data.tasks && data.categories) {
@@ -166,6 +173,23 @@ const StateManager = (() => {
       };
     } else {
       _state = structuredClone(DEFAULT_STATE);
+    }
+
+    // 2. Setup Real-time Sync (if logged in)
+    if (_uid && db) {
+      console.log('[StateManager] Setting up real-time listener for UID:', _uid);
+      _unsubscribe = db.collection('users').doc(_uid).onSnapshot(doc => {
+        if (doc.exists) {
+          const cloudData = doc.data();
+          // Only update if cloud data is newer/different (simple version: always update if not local change)
+          // To prevent feedback loops, we check if the stringified versions differ
+          if (JSON.stringify(cloudData) !== JSON.stringify(_state)) {
+            console.log('[StateManager] Cloud update received.');
+            _state = { ..._state, ...cloudData };
+            UIManager.render();
+          }
+        }
+      }, err => console.error('[StateManager] Snapshot error:', err));
     }
   }
 
