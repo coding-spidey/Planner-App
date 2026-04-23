@@ -18,12 +18,12 @@
    ================================================================ */
 // PASTE YOUR FIREBASE CONFIG HERE:
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: env.API_KEY,
+  authDomain: env.AUTH_DOMAIN,
+  projectId: env.PROJECT_ID,
+  storageBucket: env.STORAGE_BUCKER,
+  messagingSenderId: env.MESSAGING_SENDER_ID,
+  appId: env.APP_ID
 };
 
 // Initialize Firebase
