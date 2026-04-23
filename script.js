@@ -19,12 +19,13 @@
 // PASTE YOUR FIREBASE CONFIG HERE:
 
 const firebaseConfig = {
-  apiKey: "__FIREBASE_API_KEY__",
-  authDomain: "__FIREBASE_AUTH_DOMAIN__",
-  projectId: "__FIREBASE_PROJECT_ID__",
-  storageBucket: "__FIREBASE_STORAGE_BUCKET__",
-  messagingSenderId: "__FIREBASE_MESSAGING_SENDER_ID__",
-  appId: "__FIREBASE_APP_ID__"
+  apiKey: "AIzaSyCvcHmeipYMc2chXNd3AM82AigdWjZ9p1U",
+  authDomain: "planner-2bbce.firebaseapp.com",
+  projectId: "planner-2bbce",
+  storageBucket: "planner-2bbce.firebasestorage.app",
+  messagingSenderId: "186756838326",
+  appId: "1:186756838326:web:a2ef622c19050696cd8717",
+  measurementId: "G-F52RF17D34"
 };
 
 // Initialize Firebase
