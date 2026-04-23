@@ -64,32 +64,31 @@ const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
    Handles Firestore I/O for cloud sync with local fallback.
    ================================================================ */
 const StorageService = (() => {
-  /**
-   * Loads user data from Firestore or LocalStorage.
-   */
+  function getStorageKey(uid) {
+    return uid ? `focus_user_${uid}` : 'focus_guest_data';
+  }
+
   async function load(uid) {
-    // If guest mode (no uid) or no DB, use local storage only
-    if (!uid || !db) return getLocal();
+    const localKey = getStorageKey(uid);
+    if (!uid || !db) return getLocal(localKey);
 
     try {
       const doc = await db.collection('users').doc(uid).get();
       if (doc.exists) {
-        return doc.data();
+        const data = doc.data();
+        saveLocal(localKey, data);
+        return data;
       }
-      // If no cloud data, try migrating from local
-      return getLocal();
+      return getLocal(localKey);
     } catch (e) {
-      console.error('[StorageService] Firestore load failed, falling back to local:', e);
-      return getLocal();
+      console.error('[StorageService] Firestore load failed:', e);
+      return getLocal(localKey);
     }
   }
 
-  /**
-   * Saves user data to Firestore and LocalStorage.
-   */
   async function save(uid, state) {
-    // Always save to local for offline resilience
-    saveLocal(state);
+    const localKey = getStorageKey(uid);
+    saveLocal(localKey, state);
 
     if (!uid || !db) return;
     try {
@@ -99,21 +98,21 @@ const StorageService = (() => {
     }
   }
 
-  function getLocal() {
+  function getLocal(key) {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(key);
       return raw ? JSON.parse(raw) : null;
     } catch (e) { return null; }
   }
 
-  function saveLocal(state) {
+  function saveLocal(key, state) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      localStorage.setItem(key, JSON.stringify(state));
     } catch (e) { console.error('[StorageService] Local save failed:', e); }
   }
 
-  function clearLocal() {
-    localStorage.removeItem(STORAGE_KEY);
+  function clearLocal(uid) {
+    localStorage.removeItem(getStorageKey(uid));
   }
 
   return { load, save, getLocal, saveLocal, clearLocal };
@@ -154,10 +153,8 @@ const StateManager = (() => {
   async function _hydrate() {
     _uid = auth?.currentUser?.uid || null;
 
-    // Clear previous listener if any
     if (_unsubscribe) _unsubscribe();
 
-    // 1. Initial Load
     let data = await StorageService.load(_uid);
 
     if (data && data.tasks && data.categories) {
@@ -175,14 +172,11 @@ const StateManager = (() => {
       _state = structuredClone(DEFAULT_STATE);
     }
 
-    // 2. Setup Real-time Sync (if logged in)
     if (_uid && db) {
       console.log('[StateManager] Setting up real-time listener for UID:', _uid);
       _unsubscribe = db.collection('users').doc(_uid).onSnapshot(doc => {
         if (doc.exists) {
           const cloudData = doc.data();
-          // Only update if cloud data is newer/different (simple version: always update if not local change)
-          // To prevent feedback loops, we check if the stringified versions differ
           if (JSON.stringify(cloudData) !== JSON.stringify(_state)) {
             console.log('[StateManager] Cloud update received.');
             _state = { ..._state, ...cloudData };
@@ -195,16 +189,11 @@ const StateManager = (() => {
 
   function get() { return _state; }
 
-  /**
-   * Simple debounce to prevent too many Firestore writes
-   */
   let saveTimeout = null;
   function set(mutatorFn) {
     if (!_state) return;
     mutatorFn(_state);
 
-    // UI updates are immediate
-    // Storage save is debounced (1 second)
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       StorageService.save(_uid, _state);
@@ -229,7 +218,7 @@ const TaskManager = (() => {
   }
 
   function create({ title, notes = '', priority = 'medium', category = '',
-    tags = [], dueDate = '', timeBlock = '', recurring = false }) {
+    tags = [], dueDate = '', startTime = '', duration = '', timeBlock = '', recurring = false }) {
     const task = {
       id: _uid(),
       title: title.trim(),
@@ -238,6 +227,8 @@ const TaskManager = (() => {
       category,
       tags: tags.map(t => t.trim()).filter(Boolean),
       dueDate,
+      startTime,
+      duration: duration ? parseInt(duration) : null,
       timeBlock,
       recurring,
       subtasks: [],
@@ -548,6 +539,12 @@ const FocusTimer = (() => {
 const AuthManager = (() => {
   const $ = id => document.getElementById(id);
 
+  function formatEmail(input) {
+    const val = input.trim();
+    if (!val) return "";
+    return val.includes('@') ? val : `${val.toLowerCase()}@planner.local`;
+  }
+
   function init() {
     if (!auth) {
       console.warn('AuthManager: Auth service not available. Running in local mode.');
@@ -555,7 +552,6 @@ const AuthManager = (() => {
       return;
     }
 
-    // Listen for auth state changes
     auth.onAuthStateChanged(user => {
       if (user) {
         showApp();
@@ -567,7 +563,6 @@ const AuthManager = (() => {
     $('btn-login').addEventListener('click', handleLogin);
     $('btn-register').addEventListener('click', handleRegister);
     $('btn-guest').addEventListener('click', () => {
-      console.log('AuthManager: Entering Guest Mode');
       showApp();
     });
 
@@ -582,18 +577,12 @@ const AuthManager = (() => {
   }
 
   async function handleLogin() {
-    const email = $('auth-username').value.trim();
+    const email = formatEmail($('auth-username').value);
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
     if (!email || !pass) {
-      err.textContent = "Please enter email and password.";
-      err.classList.add('visible');
-      return;
-    }
-
-    if (!auth) {
-      err.textContent = "Auth service not available.";
+      err.textContent = "Please enter username and password.";
       err.classList.add('visible');
       return;
     }
@@ -602,24 +591,24 @@ const AuthManager = (() => {
       err.classList.remove('visible');
       await auth.signInWithEmailAndPassword(email, pass);
     } catch (e) {
-      err.textContent = e.message;
+      err.textContent = "Login failed. Check your credentials.";
       err.classList.add('visible');
     }
   }
 
   async function handleRegister() {
-    const email = $('auth-username').value.trim();
+    const email = formatEmail($('auth-username').value);
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
     if (!email || !pass) {
-      err.textContent = "Please enter email and password.";
+      err.textContent = "Please enter a username and password.";
       err.classList.add('visible');
       return;
     }
 
-    if (!auth) {
-      err.textContent = "Auth service not available.";
+    if (pass.length < 6) {
+      err.textContent = "Password must be at least 6 characters.";
       err.classList.add('visible');
       return;
     }
@@ -629,6 +618,10 @@ const AuthManager = (() => {
       await auth.createUserWithEmailAndPassword(email, pass);
       UIManager.showToast('Account created!');
     } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('visible');
+    }
+  }
       err.textContent = e.message;
       err.classList.add('visible');
     }
@@ -792,7 +785,6 @@ const UIManager = (() => {
     li.setAttribute('data-priority', task.priority);
     li.setAttribute('draggable', 'true');
 
-    // Overdue class
     if (!task.completed && isOverdue(task.dueDate)) {
       li.classList.add('overdue-item');
     }
@@ -806,7 +798,6 @@ const UIManager = (() => {
       ? task.tags.map(t => `<span class="task-tag">#${t}</span>`).join('')
       : '';
 
-    // Subtask progress
     let subtaskHtml = '';
     if (task.subtasks && task.subtasks.length > 0) {
       const done = task.subtasks.filter(s => s.completed).length;
@@ -820,23 +811,74 @@ const UIManager = (() => {
       `;
     }
 
+    const timeLabel = task.startTime ? `<span class="task-meta-chip">🕒 ${task.startTime}</span>` : '';
+    const durationLabel = task.duration ? `<span class="task-meta-chip">⏳ ${task.duration}m</span>` : '';
+
     li.innerHTML = `
-      <button class="task-check" data-id="${task.id}" aria-label="Mark as ${task.completed ? 'incomplete' : 'complete'}" tabindex="0">
-        ${task.completed ? '✓' : ''}
-      </button>
-      <div class="task-info">
-        <div class="task-title">${escapeHtml(task.title)}</div>
-        <div class="task-meta">
-          ${dueLabelText ? `<span class="task-meta-chip ${dueCls}">${dueLabelText}</span>` : ''}
-          ${task.timeBlock ? `<span class="task-meta-chip">⏱ ${cap(task.timeBlock)}</span>` : ''}
-          ${catName ? `<span class="task-category-chip" style="background:${catColor}18;color:${catColor}">${catName}</span>` : ''}
-          ${tagsHtml}
-          ${task.recurring ? `<span class="task-meta-chip">↻</span>` : ''}
+      <div class="task-delete-bg">Delete</div>
+      <div class="task-item-content">
+        <button class="task-check" data-id="${task.id}" aria-label="Mark as ${task.completed ? 'incomplete' : 'complete'}" tabindex="0">
+          ${task.completed ? '✓' : ''}
+        </button>
+        <div class="task-info">
+          <div class="task-title">${escapeHtml(task.title)}</div>
+          <div class="task-meta">
+            ${dueLabelText ? `<span class="task-meta-chip ${dueCls}">${dueLabelText}</span>` : ''}
+            ${timeLabel}
+            ${durationLabel}
+            ${task.timeBlock ? `<span class="task-meta-chip">⏱ ${cap(task.timeBlock)}</span>` : ''}
+            ${catName ? `<span class="task-category-chip" style="background:${catColor}18;color:${catColor}">${catName}</span>` : ''}
+            ${tagsHtml}
+            ${task.recurring ? `<span class="task-meta-chip">↻</span>` : ''}
+          </div>
+          ${subtaskHtml}
         </div>
-        ${subtaskHtml}
+        <span class="task-drag-handle" aria-hidden="true">⠿</span>
       </div>
-      <span class="task-drag-handle" aria-hidden="true">⠿</span>
     `;
+
+    // Swipe to delete logic
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+    const content = li.querySelector('.task-item-content');
+
+    li.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      isSwiping = true;
+      content.style.transition = 'none';
+    }, { passive: true });
+
+    li.addEventListener('touchmove', e => {
+      if (!isSwiping) return;
+      currentX = e.touches[0].clientX;
+      const diff = Math.min(0, currentX - startX);
+      if (diff < -5) {
+        content.style.transform = `translateX(${diff}px)`;
+        // If swiped far enough, highlight delete
+        if (diff < -70) li.classList.add('swipe-ready');
+        else li.classList.remove('swipe-ready');
+      }
+    }, { passive: true });
+
+    li.addEventListener('touchend', () => {
+      isSwiping = false;
+      content.style.transition = 'transform 0.3s var(--ease)';
+      const diff = currentX - startX;
+
+      if (diff < -100) {
+        // Trigger delete
+        content.style.transform = 'translateX(-100%)';
+        setTimeout(() => {
+          TaskManager.remove(task.id);
+          render();
+          showToast('Task deleted');
+        }, 200);
+      } else {
+        // Reset
+        content.style.transform = 'translateX(0)';
+      }
+    });
 
     return li;
   }
@@ -1092,6 +1134,8 @@ const UIManager = (() => {
     $('edit-priority').value = task.priority;
     $('edit-category').value = task.category || '';
     $('edit-due-date').value = task.dueDate || '';
+    $('edit-start-time').value = task.startTime || '';
+    $('edit-duration').value = task.duration || '';
     $('edit-time-block').value = task.timeBlock || '';
     $('edit-tags').value = task.tags.join(', ');
     $('edit-recurring').checked = !!task.recurring;
@@ -1534,6 +1578,8 @@ const App = (() => {
         priority: $('edit-priority').value,
         category: $('edit-category').value,
         dueDate: $('edit-due-date').value,
+        startTime: $('edit-start-time').value,
+        duration: $('edit-duration').value,
         timeBlock: $('edit-time-block').value,
         tags,
         recurring: $('edit-recurring').checked,

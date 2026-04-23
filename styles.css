@@ -1498,8 +1498,39 @@ kbd {
   .auth-card { padding: 30px 20px; }
 }
 
+/* ── Task Items ── */
 .task-item {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
   animation: fadeSlideIn 0.18s var(--ease) both;
+}
+
+.task-item-content {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--bg-primary);
+  gap: 14px;
+  width: 100%;
+  transition: transform 0.2s var(--ease);
+  z-index: 2;
+  position: relative;
+}
+
+.task-delete-bg {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  background: #dc2626;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  z-index: 1;
 }
 
 /* ── Responsive ── */
@@ -1510,17 +1541,38 @@ kbd {
   }
 
   .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 280px;
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
-    z-index: 1000;
+    z-index: 2000;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .sidebar.open { transform: translateX(0); }
 
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s var(--ease);
+    z-index: 1999;
+  }
+
+  .sidebar-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+  }
+
   .main { 
     margin-left: 0;
     width: 100%;
-    /* Extra padding at bottom for mobile browser bars */
     padding-bottom: env(safe-area-inset-bottom, 20px);
   }
 
@@ -1534,7 +1586,6 @@ kbd {
 
   .view {
     padding: 20px 16px;
-    /* Ensure content doesn't get hidden behind bottom bars */
     padding-bottom: 100px;
   }
 
@@ -1547,10 +1598,9 @@ kbd {
 
   .view-title { font-size: 28px; }
   
-  /* Larger touch targets for tasks */
-  .task-item {
+  /* Larger touch targets */
+  .task-item-content {
     padding: 16px;
-    margin-bottom: 8px;
     gap: 14px;
   }
 
@@ -1559,11 +1609,7 @@ kbd {
     height: 26px;
   }
 
-  .task-title {
-    font-size: 16px;
-  }
-
-  /* Make buttons bigger and easier to tap */
+  /* Buttons */
   .btn-primary, .btn-secondary, .btn-danger {
     padding: 12px 20px;
     font-size: 15px;
@@ -1573,31 +1619,37 @@ kbd {
     justify-content: center;
   }
 
-  .planner-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .planner-unscheduled { 
-    position: static; 
-  }
-
-  .form-row { grid-template-columns: 1fr; }
-
   .modal {
-    width: 95%;
-    max-height: 90vh;
+    width: 100%;
+    margin: 0;
+    position: fixed;
+    bottom: 0;
+    top: auto;
+    border-radius: 20px 20px 0 0;
+    max-height: 92vh;
+    animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
   }
 
   .modal-body { 
-    padding: 20px 16px;
+    padding: 24px 16px 40px;
+    overflow-y: auto;
   }
 
-  /* Floating action button enhancement */
   .btn-add-mobile {
     bottom: calc(30px + env(safe-area-inset-bottom));
     right: 24px;
     width: 64px;
+    height: 64px;
+    font-size: 30px;
+    box-shadow: 0 6px 20px rgba(200, 98, 26, 0.4);
+    z-index: 90;
+  }
+}
     height: 64px;
     font-size: 30px;
     box-shadow: 0 6px 20px rgba(200, 98, 26, 0.4);

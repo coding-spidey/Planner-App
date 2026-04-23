@@ -18,8 +18,8 @@
         <span class="brand-name" style="color:var(--text-primary)">Focus Login</span>
       </div>
       <div class="form-group">
-        <label for="auth-username" class="form-label">Email</label>
-        <input type="text" id="auth-username" class="form-input" placeholder="Enter email" />
+        <label for="auth-username" class="form-label">Username</label>
+        <input type="text" id="auth-username" class="form-input" placeholder="Enter username" />
       </div>
       <div class="form-group">
         <label for="auth-password" class="form-label">Password</label>
@@ -35,6 +35,7 @@
   </div>
 
   <!-- ========== SIDEBAR ========== -->
+  <div id="sidebar-overlay" class="sidebar-overlay"></div>
   <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
     <div class="sidebar-top">
       <div class="brand">
@@ -257,6 +258,17 @@
           <div class="form-group">
             <label for="edit-due-date" class="form-label">Due Date</label>
             <input type="date" id="edit-due-date" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label for="edit-start-time" class="form-label">Start Time</label>
+            <input type="time" id="edit-start-time" class="form-input" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-duration" class="form-label">Duration <span class="form-hint">(mins)</span></label>
+            <input type="number" id="edit-duration" class="form-input" placeholder="e.g. 30" min="0" />
           </div>
           <div class="form-group">
             <label for="edit-time-block" class="form-label">Time Block</label>
