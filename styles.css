@@ -91,17 +91,24 @@
 }
 
 /* ── Base Styles ── */
-html { font-size: 16px; scroll-behavior: smooth; }
+html { 
+  font-size: 16px; 
+  scroll-behavior: smooth; 
+  overscroll-behavior: none;
+}
 
 body {
   font-family: var(--font-body);
   background: var(--bg-primary);
   color: var(--text-primary);
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   transition: background var(--duration) var(--ease),
               color var(--duration) var(--ease);
   -webkit-font-smoothing: antialiased;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overflow: hidden;
 }
 
 /* ── Sidebar Search ── */
@@ -1498,13 +1505,13 @@ kbd {
 /* ── Responsive ── */
 @media (max-width: 768px) {
   :root {
-    --header-h: 48px;
+    --sidebar-w: 260px;
+    --header-h: 60px;
   }
 
   .sidebar {
     transform: translateX(-100%);
     box-shadow: var(--shadow-lg);
-    width: 260px;
     z-index: 1000;
   }
 
@@ -1513,31 +1520,57 @@ kbd {
   .main { 
     margin-left: 0;
     width: 100%;
+    /* Extra padding at bottom for mobile browser bars */
+    padding-bottom: env(safe-area-inset-bottom, 20px);
   }
 
   .mobile-header { 
     display: flex;
-    background: var(--bg-card); /* Ensure solid background */
+    background: var(--bg-card);
     height: var(--header-h);
-    padding: 0 8px;
+    padding: 0 16px;
     box-shadow: var(--shadow-sm);
   }
 
   .view {
-    padding: 16px 12px;
+    padding: 20px 16px;
+    /* Ensure content doesn't get hidden behind bottom bars */
+    padding-bottom: 100px;
   }
 
   .view-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
 
-  .view-title { font-size: 26px; }
+  .view-title { font-size: 28px; }
   
+  /* Larger touch targets for tasks */
   .task-item {
-    padding: 10px 12px;
+    padding: 16px;
+    margin-bottom: 8px;
+    gap: 14px;
+  }
+
+  .task-check {
+    width: 26px;
+    height: 26px;
+  }
+
+  .task-title {
+    font-size: 16px;
+  }
+
+  /* Make buttons bigger and easier to tap */
+  .btn-primary, .btn-secondary, .btn-danger {
+    padding: 12px 20px;
+    font-size: 15px;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .planner-layout {
@@ -1553,24 +1586,41 @@ kbd {
 
   .modal {
     width: 95%;
+    max-height: 90vh;
   }
 
   .modal-body { 
-    padding: 16px;
+    padding: 20px 16px;
+  }
+
+  /* Floating action button enhancement */
+  .btn-add-mobile {
+    bottom: calc(30px + env(safe-area-inset-bottom));
+    right: 24px;
+    width: 64px;
+    height: 64px;
+    font-size: 30px;
+    box-shadow: 0 6px 20px rgba(200, 98, 26, 0.4);
+    z-index: 90;
   }
 }
 
 @media (max-width: 480px) {
-  .view { padding: 12px 8px; }
-  .view-title { font-size: 24px; }
-
-  .btn-primary { 
-    padding: 10px; 
-    font-size: 13px;
-  }
+  .view-title { font-size: 26px; }
 
   .modal-footer { 
     flex-direction: column; 
+    gap: 12px;
+  }
+
+  .modal-footer .btn-primary,
+  .modal-footer .btn-secondary {
+    width: 100%;
+  }
+
+  .modal-footer-right {
+    width: 100%;
+    flex-direction: column;
     gap: 10px;
   }
 }
