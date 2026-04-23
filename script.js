@@ -17,6 +17,7 @@
    FIREBASE CONFIG
    ================================================================ */
 // PASTE YOUR FIREBASE CONFIG HERE:
+
 const firebaseConfig = {
   apiKey: "__FIREBASE_API_KEY__",
   authDomain: "__FIREBASE_AUTH_DOMAIN__",
@@ -27,51 +28,67 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const auth = firebase.auth();
+try {
+  if (typeof firebase !== 'undefined') {
+    firebase.initializeApp(firebaseConfig);
+  } else {
+    console.error('Firebase SDK not loaded. Check your internet connection or script tags.');
+  }
+} catch (e) {
+  console.error('Firebase initialization failed:', e);
+}
+
+const db = typeof firebase !== 'undefined' ? firebase.firestore() : null;
+const auth = typeof firebase !== 'undefined' ? firebase.auth() : null;
 
 /* ================================================================
    CONSTANTS
    ================================================================ */
-const STORAGE_KEY  = 'focus_app_v1';
-const TODAY_STR    = () => new Date().toISOString().slice(0, 10);
-const TIME_BLOCKS  = [
-  { id: 'morning',   label: 'Morning',   range: '6:00 – 12:00' },
+const STORAGE_KEY = 'focus_app_v1';
+const TODAY_STR = () => new Date().toISOString().slice(0, 10);
+const TIME_BLOCKS = [
+  { id: 'morning', label: 'Morning', range: '6:00 – 12:00' },
   { id: 'afternoon', label: 'Afternoon', range: '12:00 – 17:00' },
-  { id: 'evening',   label: 'Evening',   range: '17:00 – 21:00' },
-  { id: 'night',     label: 'Night',     range: '21:00 – 24:00' },
+  { id: 'evening', label: 'Evening', range: '17:00 – 21:00' },
+  { id: 'night', label: 'Night', range: '21:00 – 24:00' },
 ];
 const DEFAULT_CATEGORIES = ['Work', 'Personal', 'Health', 'Learning', 'Other'];
-const CATEGORY_COLORS    = ['#c8621a', '#2563eb', '#16a34a', '#8b5cf6', '#6b7280'];
-const PRIORITY_ORDER     = { high: 0, medium: 1, low: 2 };
+const CATEGORY_COLORS = ['#c8621a', '#2563eb', '#16a34a', '#8b5cf6', '#6b7280'];
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 
 /* ================================================================
    StorageService
-   Handles Firestore I/O for cloud sync.
+   Handles Firestore I/O for cloud sync with local fallback.
    ================================================================ */
 const StorageService = (() => {
   /**
-   * Loads user data from Firestore.
+   * Loads user data from Firestore or LocalStorage.
    */
   async function load(uid) {
+    // If guest mode (no uid) or no DB, use local storage only
+    if (!uid || !db) return getLocal();
+
     try {
       const doc = await db.collection('users').doc(uid).get();
       if (doc.exists) {
         return doc.data();
       }
-      return null;
+      // If no cloud data, try migrating from local
+      return getLocal();
     } catch (e) {
-      console.error('[StorageService] Firestore load failed:', e);
-      return null;
+      console.error('[StorageService] Firestore load failed, falling back to local:', e);
+      return getLocal();
     }
   }
 
   /**
-   * Saves user data to Firestore.
+   * Saves user data to Firestore and LocalStorage.
    */
   async function save(uid, state) {
-    if (!uid) return;
+    // Always save to local for offline resilience
+    saveLocal(state);
+
+    if (!uid || !db) return;
     try {
       await db.collection('users').doc(uid).set(state);
     } catch (e) {
@@ -79,9 +96,6 @@ const StorageService = (() => {
     }
   }
 
-  /**
-   * Utility to check for legacy local storage data (for migration).
-   */
   function getLocal() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -89,11 +103,17 @@ const StorageService = (() => {
     } catch (e) { return null; }
   }
 
+  function saveLocal(state) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) { console.error('[StorageService] Local save failed:', e); }
+  }
+
   function clearLocal() {
     localStorage.removeItem(STORAGE_KEY);
   }
 
-  return { load, save, getLocal, clearLocal };
+  return { load, save, getLocal, saveLocal, clearLocal };
 })();
 
 
@@ -103,19 +123,19 @@ const StorageService = (() => {
    ================================================================ */
 const StateManager = (() => {
   const DEFAULT_STATE = {
-    tasks:      [],
-    habits:     [],
+    tasks: [],
+    habits: [],
     categories: DEFAULT_CATEGORIES.map((name, i) => ({
-      id:    `cat_${i}`,
+      id: `cat_${i}`,
       name,
       color: CATEGORY_COLORS[i],
     })),
     settings: {
-      theme:         'light',
-      activeView:    'today',
-      priorityFilter:'all',
-      searchQuery:   '',
-      plannerDate:   TODAY_STR(),
+      theme: 'light',
+      activeView: 'today',
+      priorityFilter: 'all',
+      searchQuery: '',
+      plannerDate: TODAY_STR(),
       pomodoro: {
         workTime: 25,
         breakTime: 5,
@@ -125,32 +145,20 @@ const StateManager = (() => {
   };
 
   let _state = null;
-  let _uid   = null;
+  let _uid = null;
 
   async function _hydrate() {
-    _uid = auth.currentUser?.uid;
-    if (!_uid) return;
+    _uid = auth?.currentUser?.uid || null;
 
     let data = await StorageService.load(_uid);
-
-    // Migration: If no cloud data, try to pull from local storage
-    if (!data) {
-      const local = StorageService.getLocal();
-      if (local) {
-        data = local;
-        console.log('[StateManager] Migrating local data to cloud...');
-        await StorageService.save(_uid, data);
-        StorageService.clearLocal();
-      }
-    }
 
     if (data && data.tasks && data.categories) {
       _state = {
         ...DEFAULT_STATE,
         ...data,
-        habits:   data.habits || [],
-        settings: { 
-          ...DEFAULT_STATE.settings, 
+        habits: data.habits || [],
+        settings: {
+          ...DEFAULT_STATE.settings,
           ...data.settings,
           pomodoro: { ...DEFAULT_STATE.settings.pomodoro, ...(data.settings?.pomodoro || {}) }
         },
@@ -169,9 +177,9 @@ const StateManager = (() => {
   function set(mutatorFn) {
     if (!_state) return;
     mutatorFn(_state);
-    
+
     // UI updates are immediate
-    // Firestore save is debounced (1 second)
+    // Storage save is debounced (1 second)
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       StorageService.save(_uid, _state);
@@ -196,22 +204,22 @@ const TaskManager = (() => {
   }
 
   function create({ title, notes = '', priority = 'medium', category = '',
-                    tags = [], dueDate = '', timeBlock = '', recurring = false }) {
+    tags = [], dueDate = '', timeBlock = '', recurring = false }) {
     const task = {
-      id:          _uid(),
-      title:       title.trim(),
-      notes:       notes.trim(),
+      id: _uid(),
+      title: title.trim(),
+      notes: notes.trim(),
       priority,
       category,
-      tags:        tags.map(t => t.trim()).filter(Boolean),
+      tags: tags.map(t => t.trim()).filter(Boolean),
       dueDate,
       timeBlock,
       recurring,
-      subtasks:    [],
-      completed:   false,
+      subtasks: [],
+      completed: false,
       completedAt: null,
-      createdAt:   new Date().toISOString(),
-      order:       StateManager.get().tasks.length,
+      createdAt: new Date().toISOString(),
+      order: StateManager.get().tasks.length,
     };
 
     StateManager.set(state => state.tasks.push(task));
@@ -236,7 +244,7 @@ const TaskManager = (() => {
     StateManager.set(state => {
       const task = state.tasks.find(t => t.id === id);
       if (!task) return;
-      task.completed   = !task.completed;
+      task.completed = !task.completed;
       task.completedAt = task.completed ? new Date().toISOString() : null;
     });
   }
@@ -338,7 +346,7 @@ const TaskManager = (() => {
     StateManager.set(state => {
       const tasks = state.tasks;
       const fromIdx = tasks.findIndex(t => t.id === fromId);
-      const toIdx   = tasks.findIndex(t => t.id === toId);
+      const toIdx = tasks.findIndex(t => t.id === toId);
       if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
       const [moved] = tasks.splice(fromIdx, 1);
       tasks.splice(toIdx, 0, moved);
@@ -404,11 +412,11 @@ const TaskManager = (() => {
         if (!alreadyExists) {
           state.tasks.push({
             ...tmpl,
-            id:          `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            dueDate:     today,
-            completed:   false,
+            id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            dueDate: today,
+            completed: false,
             completedAt: null,
-            createdAt:   new Date().toISOString(),
+            createdAt: new Date().toISOString(),
           });
         }
       }
@@ -479,7 +487,7 @@ const FocusTimer = (() => {
   function complete() {
     stop();
     const { workTime, breakTime } = StateManager.get().settings.pomodoro;
-    
+
     if (isWork) {
       UIManager.showToast('Work session complete! Time for a break.');
       StateManager.set(s => s.settings.pomodoro.sessionsDone++);
@@ -490,9 +498,9 @@ const FocusTimer = (() => {
       isWork = true;
       timeLeft = workTime * 60;
     }
-    
+
     updateDisplay();
-    new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(() => {});
+    new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play().catch(() => { });
   }
 
   function updateDisplay() {
@@ -516,6 +524,12 @@ const AuthManager = (() => {
   const $ = id => document.getElementById(id);
 
   function init() {
+    if (!auth) {
+      console.warn('AuthManager: Auth service not available. Running in local mode.');
+      showApp();
+      return;
+    }
+
     // Listen for auth state changes
     auth.onAuthStateChanged(user => {
       if (user) {
@@ -527,11 +541,18 @@ const AuthManager = (() => {
 
     $('btn-login').addEventListener('click', handleLogin);
     $('btn-register').addEventListener('click', handleRegister);
+    $('btn-guest').addEventListener('click', () => {
+      console.log('AuthManager: Entering Guest Mode');
+      showApp();
+    });
 
     ['auth-username', 'auth-password'].forEach(id => {
-      $(id).addEventListener('keydown', e => {
-        if (e.key === 'Enter') handleLogin();
-      });
+      const el = $(id);
+      if (el) {
+        el.addEventListener('keydown', e => {
+          if (e.key === 'Enter') handleLogin();
+        });
+      }
     });
   }
 
@@ -540,7 +561,17 @@ const AuthManager = (() => {
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
-    if (!email || !pass) return;
+    if (!email || !pass) {
+      err.textContent = "Please enter email and password.";
+      err.classList.add('visible');
+      return;
+    }
+
+    if (!auth) {
+      err.textContent = "Auth service not available.";
+      err.classList.add('visible');
+      return;
+    }
 
     try {
       err.classList.remove('visible');
@@ -562,6 +593,12 @@ const AuthManager = (() => {
       return;
     }
 
+    if (!auth) {
+      err.textContent = "Auth service not available.";
+      err.classList.add('visible');
+      return;
+    }
+
     try {
       err.classList.remove('visible');
       await auth.createUserWithEmailAndPassword(email, pass);
@@ -575,7 +612,7 @@ const AuthManager = (() => {
   function showApp() {
     const authScreen = $('auth-screen');
     if (authScreen) authScreen.hidden = true;
-    App.init(); 
+    App.init();
   }
 
   function showLogin() {
@@ -584,7 +621,9 @@ const AuthManager = (() => {
   }
 
   async function logout() {
-    await auth.signOut();
+    if (auth) {
+      await auth.signOut();
+    }
     window.location.reload();
   }
 
@@ -606,8 +645,8 @@ const UIManager = (() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-    if (dateStr === today)        return '📅 Today';
-    if (dateStr === tomorrowStr)  return '📅 Tomorrow';
+    if (dateStr === today) return '📅 Today';
+    if (dateStr === tomorrowStr) return '📅 Tomorrow';
     const diff = Math.round((d - new Date(today + 'T00:00:00')) / 86400000);
     if (diff < 0) return `⚠ ${Math.abs(diff)}d overdue`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -714,8 +753,8 @@ const UIManager = (() => {
 
   /* ── Render badges ── */
   function renderBadges() {
-    $('badge-today').textContent   = TaskManager.getToday().length;
-    $('badge-inbox').textContent   = TaskManager.getInbox().length;
+    $('badge-today').textContent = TaskManager.getToday().length;
+    $('badge-inbox').textContent = TaskManager.getInbox().length;
     $('badge-upcoming').textContent = TaskManager.getUpcoming().length;
   }
 
@@ -733,11 +772,11 @@ const UIManager = (() => {
       li.classList.add('overdue-item');
     }
 
-    const catName  = getCategoryName(task.category);
+    const catName = getCategoryName(task.category);
     const catColor = getCategoryColor(task.category);
     const dueLabelText = dateLabel(task.dueDate);
-    const dueCls   = !task.completed && isOverdue(task.dueDate) ? 'overdue'
-                   : task.dueDate === TODAY_STR() ? 'due-today' : '';
+    const dueCls = !task.completed && isOverdue(task.dueDate) ? 'overdue'
+      : task.dueDate === TODAY_STR() ? 'due-today' : '';
     const tagsHtml = task.tags.length
       ? task.tags.map(t => `<span class="task-tag">#${t}</span>`).join('')
       : '';
@@ -782,7 +821,7 @@ const UIManager = (() => {
     container.innerHTML = '';
 
     const { priorityFilter, searchQuery } = StateManager.get().settings;
-    
+
     let filtered = tasks;
 
     // Apply priority filter
@@ -793,8 +832,8 @@ const UIManager = (() => {
     // Apply search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(t => 
-        t.title.toLowerCase().includes(q) || 
+      filtered = filtered.filter(t =>
+        t.title.toLowerCase().includes(q) ||
         (t.notes && t.notes.toLowerCase().includes(q)) ||
         t.tags.some(tag => tag.toLowerCase().includes(q))
       );
@@ -877,9 +916,9 @@ const UIManager = (() => {
   /* ── Update view header title ── */
   function updateViewHeader() {
     const titles = {
-      today:     'Today',
-      inbox:     'Inbox',
-      upcoming:  'Upcoming',
+      today: 'Today',
+      inbox: 'Inbox',
+      upcoming: 'Upcoming',
       completed: 'Completed',
     };
     const { activeView } = StateManager.get().settings;
@@ -934,7 +973,7 @@ const UIManager = (() => {
         e.stopPropagation();
         const id = checkBtn.dataset.id;
         const task = StateManager.get().tasks.find(t => t.id === id);
-        
+
         // Celebration if completing high priority
         if (task && !task.completed && task.priority === 'high') {
           showCelebration();
@@ -1022,14 +1061,14 @@ const UIManager = (() => {
 
     populateCategorySelects();
 
-    $('edit-task-id').value   = task.id;
-    $('edit-title').value     = task.title;
-    $('edit-notes').value     = task.notes || '';
-    $('edit-priority').value  = task.priority;
-    $('edit-category').value  = task.category || '';
-    $('edit-due-date').value  = task.dueDate || '';
+    $('edit-task-id').value = task.id;
+    $('edit-title').value = task.title;
+    $('edit-notes').value = task.notes || '';
+    $('edit-priority').value = task.priority;
+    $('edit-category').value = task.category || '';
+    $('edit-due-date').value = task.dueDate || '';
     $('edit-time-block').value = task.timeBlock || '';
-    $('edit-tags').value      = task.tags.join(', ');
+    $('edit-tags').value = task.tags.join(', ');
     $('edit-recurring').checked = !!task.recurring;
 
     renderSubtasks(task);
@@ -1138,8 +1177,8 @@ const UIManager = (() => {
   function hideQuickAdd() {
     $('quick-add-bar').classList.remove('visible');
     $('quick-add-input').value = '';
-    $('quick-priority').value  = 'medium';
-    $('quick-date').value      = '';
+    $('quick-priority').value = 'medium';
+    $('quick-date').value = '';
   }
 
   return {
@@ -1425,7 +1464,7 @@ const App = (() => {
     $('btn-save-quick').addEventListener('click', saveQuickTask);
 
     $('quick-add-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter')  saveQuickTask();
+      if (e.key === 'Enter') saveQuickTask();
       if (e.key === 'Escape') UIManager.hideQuickAdd();
     });
   }
@@ -1442,7 +1481,7 @@ const App = (() => {
     TaskManager.create({
       title,
       priority: $('quick-priority').value,
-      dueDate:  $('quick-date').value || (isToday ? TODAY_STR() : ''),
+      dueDate: $('quick-date').value || (isToday ? TODAY_STR() : ''),
       category: $('quick-category').value,
     });
 
@@ -1453,7 +1492,7 @@ const App = (() => {
 
   /* ── Edit Modal ── */
   function wireModal() {
-    $('modal-close').addEventListener('click',  () => UIManager.closeEditModal());
+    $('modal-close').addEventListener('click', () => UIManager.closeEditModal());
     $('btn-cancel-edit').addEventListener('click', () => UIManager.closeEditModal());
 
     $('btn-save-edit').addEventListener('click', () => {
@@ -1466,10 +1505,10 @@ const App = (() => {
 
       TaskManager.update(id, {
         title,
-        notes:     $('edit-notes').value.trim(),
-        priority:  $('edit-priority').value,
-        category:  $('edit-category').value,
-        dueDate:   $('edit-due-date').value,
+        notes: $('edit-notes').value.trim(),
+        priority: $('edit-priority').value,
+        category: $('edit-category').value,
+        dueDate: $('edit-due-date').value,
         timeBlock: $('edit-time-block').value,
         tags,
         recurring: $('edit-recurring').checked,
@@ -1513,8 +1552,8 @@ const App = (() => {
   /* ── Global keyboard shortcuts ── */
   function wireGlobalKeys() {
     document.addEventListener('keydown', e => {
-      const isInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
-      
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+
       // Focus Search (/)
       if (e.key === '/' && !isInput) {
         e.preventDefault();
@@ -1566,9 +1605,9 @@ const App = (() => {
     $('btn-export').addEventListener('click', () => {
       const data = JSON.stringify(StateManager.get(), null, 2);
       const blob = new Blob([data], { type: 'application/json' });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
       a.download = `focus-tasks-${TODAY_STR()}.json`;
       a.click();
       URL.revokeObjectURL(url);
