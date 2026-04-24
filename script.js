@@ -538,11 +538,31 @@ const FocusTimer = (() => {
    ================================================================ */
 const AuthManager = (() => {
   const $ = id => document.getElementById(id);
+  let isRegisterMode = false;
 
   function formatEmail(input) {
     const val = input.trim();
     if (!val) return "";
     return val.includes('@') ? val : `${val.toLowerCase()}@planner.local`;
+  }
+
+  function toggleAuthMode(e) {
+    if (e) e.preventDefault();
+    isRegisterMode = !isRegisterMode;
+    
+    $('auth-email-group').style.display = isRegisterMode ? 'block' : 'none';
+    $('label-username').textContent = isRegisterMode ? 'Username' : 'Email or Username';
+    $('btn-login').style.display = isRegisterMode ? 'none' : 'block';
+    $('btn-register').style.display = isRegisterMode ? 'block' : 'none';
+    
+    const title = document.querySelector('.auth-card .brand-name');
+    title.textContent = isRegisterMode ? 'Create Account' : 'Focus Login';
+    
+    $('btn-toggle-auth').textContent = isRegisterMode 
+      ? 'Already have an account? Login' 
+      : "Don't have an account? Create one";
+    
+    $('auth-error').classList.remove('visible');
   }
 
   function init() {
@@ -562,6 +582,7 @@ const AuthManager = (() => {
 
     $('btn-login').addEventListener('click', handleLogin);
     $('btn-register').addEventListener('click', handleRegister);
+    $('btn-toggle-auth').addEventListener('click', toggleAuthMode);
     $('btn-guest').addEventListener('click', () => {
       showApp();
     });
@@ -570,19 +591,23 @@ const AuthManager = (() => {
       const el = $(id);
       if (el) {
         el.addEventListener('keydown', e => {
-          if (e.key === 'Enter') handleLogin();
+          if (e.key === 'Enter') {
+            if (isRegisterMode) handleRegister();
+            else handleLogin();
+          }
         });
       }
     });
   }
 
   async function handleLogin() {
-    const email = $('auth-email').value.trim();
+    const input = $('auth-username').value.trim();
+    const email = formatEmail(input);
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
-    if (!email || !pass) {
-      err.textContent = "Please enter email and password.";
+    if (!input || !pass) {
+      err.textContent = "Please enter credentials.";
       err.classList.add('visible');
       return;
     }
@@ -602,8 +627,8 @@ const AuthManager = (() => {
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
-    if (!email || !pass) {
-      err.textContent = "Please enter email and password.";
+    if (!email || !username || !pass) {
+      err.textContent = "Please fill all fields.";
       err.classList.add('visible');
       return;
     }

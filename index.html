@@ -17,12 +17,12 @@
         <span class="brand-icon">◈</span>
         <span class="brand-name" style="color:var(--text-primary)">Focus Login</span>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="auth-email-group" style="display:none;">
         <label for="auth-email" class="form-label">Email</label>
         <input type="email" id="auth-email" class="form-input" placeholder="Enter email" />
       </div>
       <div class="form-group">
-        <label for="auth-username" class="form-label">Username (Display Name)</label>
+        <label for="auth-username" class="form-label" id="label-username">Email or Username</label>
         <input type="text" id="auth-username" class="form-input" placeholder="Enter username" />
       </div>
       <div class="form-group">
@@ -30,7 +30,10 @@
         <input type="password" id="auth-password" class="form-input" placeholder="Enter password" />
       </div>
       <button id="btn-login" class="btn-primary" style="width:100%; margin-top:10px;">Login</button>
-      <button id="btn-register" class="btn-secondary" style="width:100%; margin-top:10px;">Create Account</button>
+      <button id="btn-register" class="btn-secondary" style="width:100%; margin-top:10px; display:none;">Create Account</button>
+      <div style="text-align:center; margin-top:15px;">
+        <a href="#" id="btn-toggle-auth" style="color:var(--accent); font-size:13px; text-decoration:none; font-weight:500;">Don't have an account? Create one</a>
+      </div>
       <div style="text-align:center; margin-top:15px; border-top:1px solid var(--border); padding-top:15px;">
         <button id="btn-guest" style="background:none; border:none; color:var(--accent); cursor:pointer; font-size:13px; font-weight:500;">Continue as Guest (Local Mode)</button>
       </div>
