@@ -602,7 +602,6 @@ const AuthManager = (() => {
 
   async function handleLogin() {
     const input = $('auth-username').value.trim();
-    const email = formatEmail(input);
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
@@ -612,11 +611,40 @@ const AuthManager = (() => {
       return;
     }
 
+    err.classList.remove('visible');
+    let email = input;
+
+    // If it's a username (no @), we must resolve it to an email
+    if (!input.includes('@')) {
+      if (db) {
+        try {
+          const doc = await db.collection('usernames').doc(input.toLowerCase()).get();
+          if (doc.exists) {
+            email = doc.data().email;
+            console.log('[AuthManager] Resolved username to email:', email);
+          } else {
+            console.warn('[AuthManager] Username not found in mapping.');
+            err.textContent = "Username not found. Try logging in with your email.";
+            err.classList.add('visible');
+            return;
+          }
+        } catch (e) {
+          console.error('[AuthManager] Firestore lookup error:', e);
+          // If Firestore fails (e.g. permissions), we try the legacy format
+          email = `${input.toLowerCase()}@planner.local`;
+        }
+      } else {
+        email = `${input.toLowerCase()}@planner.local`;
+      }
+    }
+
     try {
-      err.classList.remove('visible');
       await auth.signInWithEmailAndPassword(email, pass);
     } catch (e) {
-      err.textContent = "Login failed. Check your credentials.";
+      console.error('[AuthManager] Firebase Auth Error:', e.code, e.message);
+      err.textContent = (e.code === 'auth/invalid-login-credentials') 
+        ? "Invalid email/username or password." 
+        : e.message;
       err.classList.add('visible');
     }
   }
@@ -641,14 +669,41 @@ const AuthManager = (() => {
 
     try {
       err.classList.remove('visible');
-      const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
-      if (username) {
-        await userCredential.user.updateProfile({
-          displayName: username
-        });
+      
+      // 1. Check if username is already taken in our mapping
+      if (db) {
+        const doc = await db.collection('usernames').doc(username.toLowerCase()).get();
+        if (doc.exists) {
+          throw new Error("Username is already taken.");
+        }
       }
-      UIManager.showToast('Account created!');
+
+      // 2. Create the Auth User
+      const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+      
+      // 3. Update the profile with the display name
+      await userCredential.user.updateProfile({
+        displayName: username
+      });
+
+      // 4. Save the username -> email mapping so we can find it during login
+      if (db) {
+        try {
+          await db.collection('usernames').doc(username.toLowerCase()).set({
+            email: email,
+            uid: userCredential.user.uid,
+            createdAt: new Date().toISOString()
+          });
+        } catch (dbErr) {
+          console.error('[AuthManager] Failed to save username mapping:', dbErr);
+          // We don't throw here so the user can still use the app, 
+          // but we log it for debugging.
+        }
+      }
+
+      UIManager.showToast('Account created successfully!');
     } catch (e) {
+      console.error('[AuthManager] Registration Error:', e);
       err.textContent = e.message;
       err.classList.add('visible');
     }
