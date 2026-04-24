@@ -622,10 +622,6 @@ const AuthManager = (() => {
       err.classList.add('visible');
     }
   }
-      err.textContent = e.message;
-      err.classList.add('visible');
-    }
-  }
 
   function showApp() {
     const authScreen = $('auth-screen');
