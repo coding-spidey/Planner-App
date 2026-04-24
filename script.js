@@ -566,7 +566,7 @@ const AuthManager = (() => {
       showApp();
     });
 
-    ['auth-username', 'auth-password'].forEach(id => {
+    ['auth-email', 'auth-username', 'auth-password'].forEach(id => {
       const el = $(id);
       if (el) {
         el.addEventListener('keydown', e => {
@@ -577,12 +577,12 @@ const AuthManager = (() => {
   }
 
   async function handleLogin() {
-    const email = formatEmail($('auth-username').value);
+    const email = $('auth-email').value.trim();
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
     if (!email || !pass) {
-      err.textContent = "Please enter username and password.";
+      err.textContent = "Please enter email and password.";
       err.classList.add('visible');
       return;
     }
@@ -597,12 +597,13 @@ const AuthManager = (() => {
   }
 
   async function handleRegister() {
-    const email = formatEmail($('auth-username').value);
+    const email = $('auth-email').value.trim();
+    const username = $('auth-username').value.trim();
     const pass = $('auth-password').value.trim();
     const err = $('auth-error');
 
     if (!email || !pass) {
-      err.textContent = "Please enter a username and password.";
+      err.textContent = "Please enter email and password.";
       err.classList.add('visible');
       return;
     }
@@ -615,7 +616,12 @@ const AuthManager = (() => {
 
     try {
       err.classList.remove('visible');
-      await auth.createUserWithEmailAndPassword(email, pass);
+      const userCredential = await auth.createUserWithEmailAndPassword(email, pass);
+      if (username) {
+        await userCredential.user.updateProfile({
+          displayName: username
+        });
+      }
       UIManager.showToast('Account created!');
     } catch (e) {
       err.textContent = e.message;
@@ -1244,6 +1250,7 @@ const UIManager = (() => {
     $('quick-add-input').value = '';
     $('quick-priority').value = 'medium';
     $('quick-date').value = '';
+    $('quick-time').value = '';
   }
 
   return {
@@ -1547,6 +1554,7 @@ const App = (() => {
       title,
       priority: $('quick-priority').value,
       dueDate: $('quick-date').value || (isToday ? TODAY_STR() : ''),
+      startTime: $('quick-time').value,
       category: $('quick-category').value,
     });
 

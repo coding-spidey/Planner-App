@@ -18,7 +18,11 @@
         <span class="brand-name" style="color:var(--text-primary)">Focus Login</span>
       </div>
       <div class="form-group">
-        <label for="auth-username" class="form-label">Username</label>
+        <label for="auth-email" class="form-label">Email</label>
+        <input type="email" id="auth-email" class="form-input" placeholder="Enter email" />
+      </div>
+      <div class="form-group">
+        <label for="auth-username" class="form-label">Username (Display Name)</label>
         <input type="text" id="auth-username" class="form-input" placeholder="Enter username" />
       </div>
       <div class="form-group">
@@ -178,6 +182,7 @@
             <option value="low">● Low</option>
           </select>
           <input type="date" id="quick-date" class="meta-input" aria-label="Due date" />
+          <input type="time" id="quick-time" class="meta-input" aria-label="Start time" />
           <select id="quick-category" class="meta-select" aria-label="Category">
             <!-- Populated by JS -->
           </select>
